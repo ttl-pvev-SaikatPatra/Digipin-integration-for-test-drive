@@ -1,0 +1,61 @@
+<!-- File: templates/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Drive Booking</title>
+  <script src="https://cdn.digipin.in/production/v1.0/digipin.js"></script>
+</head>
+<body>
+  <h2>Test Drive Booking Form</h2>
+  <form id="bookingForm">
+    <label>First Name:</label><br>
+    <input type="text" name="first_name" required><br><br>
+
+    <label>Last Name:</label><br>
+    <input type="text" name="last_name" required><br><br>
+
+    <label>Mobile Number:</label><br>
+    <input type="text" name="mobile" required><br><br>
+
+    <label>Model:</label><br>
+    <input type="text" name="model" required><br><br>
+
+    <label>Address (Click Digipin):</label><br>
+    <input type="text" id="address" name="address" readonly required>
+    <button type="button" onclick="launchDigipin()">📍 Use Digipin</button><br><br>
+
+    <button type="submit">Submit</button>
+  </form>
+
+  <p id="responseMessage"></p>
+
+  <script>
+    function launchDigipin() {
+      digipin.init({
+        api_key: "YOUR_DIGIPIN_API_KEY", // Replace with your actual Digipin API key
+        callback: function(data) {
+          document.getElementById('address').value = data.formatted_address;
+        }
+      });
+    }
+
+    document.getElementById('bookingForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const formData = new FormData(this);
+      const payload = Object.fromEntries(formData.entries());
+
+      const res = await fetch("/api/book", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const json = await res.json();
+      document.getElementById("responseMessage").innerText = json.message || "Submitted!";
+    });
+  </script>
+</body>
+</html>
