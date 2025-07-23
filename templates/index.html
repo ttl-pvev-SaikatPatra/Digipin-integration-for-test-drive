@@ -48,11 +48,12 @@
       <label for="model">Model:</label>
       <input type="text" name="model" required>
 
-      <label for="address">Address:</label>
+      <label for="address">Address (Auto-filled on Map Click):</label>
       <input type="text" name="address" id="address" required readonly>
       
+      <!-- Hidden fields for coordinates -->
       <input type="hidden" id="latitude" name="latitude">
-        <input type="hidden" id="longitude" name="longitude">
+      <input type="hidden" id="longitude" name="longitude">
 
       <div id="map"></div>
 
@@ -62,29 +63,45 @@
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  
   <!-- Reverse Geocoding via OpenStreetMap Nominatim -->
   <script>
-    const map = L.map('map').setView([19.0760, 72.8777], 12); // Default to Mumbai
+    const map = L.map('map').setView([19.0760, 72.8777], 12); // Mumbai default
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
     let marker;
 
     map.on('click', async function(e) {
-      const lat = e.latlng.lat;
-      const lng = e.latlng.lng;
+      const lat = e.latlng.lat.toFixed(6);
+      const lng = e.latlng.lng.toFixed(6);
 
+      // Remove previous marker if exists
       if (marker) {
         map.removeLayer(marker);
       }
 
+      // Add new marker
       marker = L.marker([lat, lng]).addTo(map);
 
-      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
-      const data = await response.json();
-      document.getElementById('address').value = data.display_name || `${lat}, ${lng}`;
+      // Set hidden input values
+      document.getElementById('latitude').value = lat;
+      document.getElementById('longitude').value = lng;
+
+      // Reverse geocode
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
+        const data = await response.json();
+
+        const address = data.display_name || `${lat}, ${lng}`;
+        document.getElementById('address').value = address;
+      } catch (err) {
+        console.error("Reverse geocoding failed", err);
+        document.getElementById('address').value = `${lat}, ${lng}`;
+      }
     });
   </script>
 </body>
