@@ -51,6 +51,8 @@ def submit():
             mobile=data['mobile'],
             model=data['model'],
             address=data['address']
+            latitude=data.get('latitude'),
+            longitude=data.get('longitude')
         )
         db.session.add(new_booking)
         db.session.commit()
