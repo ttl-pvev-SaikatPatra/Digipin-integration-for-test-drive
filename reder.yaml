@@ -3,7 +3,7 @@ services:
     name: test-drive-api
     env: python
     buildCommand: ""
-    startCommand: python app.py
+    startCommand: streamlit run app.py
     plan: free
     envVars:
       - key: DATABASE_URL
