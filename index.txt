@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Book a Test Drive</title>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+<body>
+  <h2>Book a Test Drive</h2>
+  <form id="bookingForm">
+    <input name="first_name" placeholder="First Name" required><br><br>
+    <input name="last_name" placeholder="Last Name" required><br><br>
+    <input name="mobile" placeholder="Mobile Number" required><br><br>
+    <input name="model" placeholder="Car Model" required><br><br>
+    <div id="map" style="height: 300px;"></div><br>
+    <button type="submit">Submit</button>
+  </form>
+
+  <script>
+    let selectedLat, selectedLng;
+    const map = L.map('map').setView([19.0760, 72.8777], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    let marker;
+
+    map.on('click', e => {
+      selectedLat = e.latlng.lat;
+      selectedLng = e.latlng.lng;
+      if (marker) map.removeLayer(marker);
+      marker = L.marker([selectedLat, selectedLng]).addTo(map);
+    });
+
+    document.getElementById('bookingForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const body = {
+        first_name: e.target.first_name.value,
+        last_name: e.target.last_name.value,
+        mobile: e.target.mobile.value,
+        model: e.target.model.value,
+        latitude: selectedLat,
+        longitude: selectedLng
+      };
+      const res = await fetch('/api/book-test-drive', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      });
+      const result = await res.json();
+      alert(result.success ? `Success! DigiPIN: ${result.digipin}` : `Error: ${result.error}`);
+    });
+  </script>
+</body>
+</html>
