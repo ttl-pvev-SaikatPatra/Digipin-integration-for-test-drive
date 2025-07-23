@@ -4,7 +4,7 @@ services:
     env: python
     pythonVersion: 3.11
     buildCommand: ""
-    startCommand: python --version
+    startCommand: python --version && python app.py
     plan: free
     branch: main
     region: oregon
