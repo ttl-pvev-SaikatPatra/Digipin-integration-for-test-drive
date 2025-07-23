@@ -2,6 +2,7 @@ services:
   - type: web
     name: digipin-flask-app
     env: python
+    pythonVersion: 3.11
     buildCommand: ""
     startCommand: python app.py
     plan: free
