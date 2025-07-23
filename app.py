@@ -1,43 +1,75 @@
-from flask import Flask, request, jsonify, render_template
-from flask_cors import CORS
-from pymongo import MongoClient
+from flask import Flask, render_template, request, redirect, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
 import os
 
 app = Flask(__name__)
-CORS(app)
 
-# MongoDB configuration
-# MONGO_URI = os.environ.get("MONGO_URI")  # Set this in Render as an environment variable
-client = MongoClient(mongodb+srv://saikatpatra64:Saikatpatra64@cluster0.qjespmw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0)
-db = client["digipin"]
-collection = db["bookings"]
+# ✅ Load PostgreSQL connection from environment variable
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    'DATABASE_URL',
+    'postgresql://testdrive_db_user:3MwrW6T038nWmddw1BxfQGu4NsRLL6Wl@dpg-d20ahv15pdvs73caoo7g-a:5432/testdrive_db'
+)
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-@app.route("/")
+# ✅ Initialize SQLAlchemy
+db = SQLAlchemy(app)
+
+# ✅ Define the Bookings Table
+class Booking(db.Model):
+    __tablename__ = 'bookings'
+    id = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String(100), nullable=False)
+    last_name = db.Column(db.String(100), nullable=False)
+    mobile = db.Column(db.String(20), nullable=False)
+    model = db.Column(db.String(100), nullable=False)
+    address = db.Column(db.String(300), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# ✅ Create tables before first request
+@app.before_first_request
+def create_tables():
+    db.create_all()
+
+# ✅ HTML Form Endpoint
+@app.route('/', methods=['GET'])
 def home():
-    return render_template("index.html")
+    return render_template('form.html')
 
-@app.route("/submit", methods=["POST"])
-def submit_booking():
-    data = request.json
-    
-# ✅ Basic manual validation (example)
-    required_fields = ["customer_name", "mobile", "pincode", "car_model", "dealer_code"]
-    for field in required_fields:
-        if field not in data:
-            return jsonify({"error": f"{field} is required"}), 400
-
-    # ✅ Insert into MongoDB
-    result = collection.insert_one(data)
-    return jsonify({"message": "Booking saved", "id": str(result.inserted_id)}),
-    data = request.json
-    if not data:
-        return jsonify({"status": "fail", "message": "No data received"}), 400
-
+# ✅ API to Submit Booking
+@app.route('/submit', methods=['POST'])
+def submit():
     try:
-        collection.insert_one(data)
-        return jsonify({"status": "success", "message": "Booking submitted successfully"})
+        data = request.form
+        new_booking = Booking(
+            first_name=data['first_name'],
+            last_name=data['last_name'],
+            mobile=data['mobile'],
+            model=data['model'],
+            address=data['address']
+        )
+        db.session.add(new_booking)
+        db.session.commit()
+        return redirect('/')
     except Exception as e:
-        return jsonify({"status": "fail", "message": str(e)}), 500
+        return f"An error occurred: {str(e)}", 500
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+# ✅ Optional: API to fetch all bookings (for testing)
+@app.route('/bookings', methods=['GET'])
+def list_bookings():
+    bookings = Booking.query.order_by(Booking.created_at.desc()).all()
+    results = [
+        {
+            "first_name": b.first_name,
+            "last_name": b.last_name,
+            "mobile": b.mobile,
+            "model": b.model,
+            "address": b.address,
+            "created_at": b.created_at.strftime('%Y-%m-%d %H:%M')
+        }
+        for b in bookings
+    ]
+    return jsonify(results)
+
+if __name__ == '__main__':
+    app.run(debug=True)
