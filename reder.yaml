@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: test-drive-api
+    name: digipin-integration
     env: python
-    buildCommand: ""
-    startCommand: streamlit run app.py
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "streamlit run app.py"
     plan: free
     envVars:
       - key: DATABASE_URL
