@@ -3,7 +3,7 @@ services:
     name: digipin-integration
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "streamlit run app.py"
+    startCommand: "streamlit run app.py --server.port=$PORT --server.enableCORS=false"
     plan: free
     envVars:
       - key: DATABASE_URL
