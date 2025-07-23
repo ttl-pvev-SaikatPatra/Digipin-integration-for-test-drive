@@ -33,6 +33,11 @@ def create_tables():
 def home():
     return render_template('form.html')
 
+# ✅ NEW ROUTE: serve the index.html page
+@app.route('/')
+def index():
+    return render_template('index.html')
+    
 # ✅ API to Submit Booking
 @app.route('/submit', methods=['POST'])
 def submit():
