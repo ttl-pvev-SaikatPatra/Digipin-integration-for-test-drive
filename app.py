@@ -21,6 +21,8 @@ class Booking(db.Model):
     mobile = db.Column(db.String(20), nullable=False)
     model = db.Column(db.String(100), nullable=False)
     address = db.Column(db.String(300), nullable=False)
+    latitude = db.Column(db.Float)       # ✅ New
+    longitude = db.Column(db.Float)      # ✅ New
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # ✅ Create tables before first request
