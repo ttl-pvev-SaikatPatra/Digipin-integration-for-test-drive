@@ -5,14 +5,14 @@ import os
 
 app = Flask(__name__)
 
-# ✅ Load PostgreSQL connection from environment variable
-app.config['SQLALCHEMY_DATABASE_URI'] ='postgresql://testdrive_db_user:3MwrW6T038nWmddw1BxfQGu4NsRLL6Wl@dpg-d20ahv15pdvs73caoo7g-a:5432/testdrive_db'
+# ✅ Load PostgreSQL connection
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://testdrive_db_user:3MwrW6T038nWmddw1BxfQGu4NsRLL6Wl@dpg-d20ahv15pdvs73caoo7g-a:5432/testdrive_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# ✅ Initialize SQLAlchemy
+# ✅ Initialize DB
 db = SQLAlchemy(app)
 
-# ✅ Define the Bookings Table
+# ✅ Define Bookings Model
 class Booking(db.Model):
     __tablename__ = 'bookings'
     id = db.Column(db.Integer, primary_key=True)
@@ -21,26 +21,21 @@ class Booking(db.Model):
     mobile = db.Column(db.String(20), nullable=False)
     model = db.Column(db.String(100), nullable=False)
     address = db.Column(db.String(300), nullable=False)
-    latitude = db.Column(db.Float)       # ✅ New
-    longitude = db.Column(db.Float)      # ✅ New
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# ✅ Create tables before first request
+# ✅ Create DB tables
 @app.before_first_request
 def create_tables():
     db.create_all()
 
-# ✅ HTML Form Endpoint
+# ✅ Serve HTML Form
 @app.route('/', methods=['GET'])
-def home():
-    return render_template('form.html')
-
-# ✅ NEW ROUTE: serve the index.html page
-@app.route('/')
 def index():
     return render_template('index.html')
-    
-# ✅ API to Submit Booking
+
+# ✅ Handle Form Submission
 @app.route('/submit', methods=['POST'])
 def submit():
     try:
@@ -50,17 +45,17 @@ def submit():
             last_name=data['last_name'],
             mobile=data['mobile'],
             model=data['model'],
-            address=data['address']
-            latitude=data.get('latitude'),
-            longitude=data.get('longitude')
+            address=data['address'],
+            latitude=float(data.get('latitude', 0)),
+            longitude=float(data.get('longitude', 0))
         )
         db.session.add(new_booking)
         db.session.commit()
         return redirect('/')
     except Exception as e:
-        return f"An error occurred: {str(e)}", 500
+        return f"An error occurred while saving booking: {str(e)}", 500
 
-# ✅ Optional: API to fetch all bookings (for testing)
+# ✅ Optional: View All Bookings
 @app.route('/bookings', methods=['GET'])
 def list_bookings():
     bookings = Booking.query.order_by(Booking.created_at.desc()).all()
@@ -71,6 +66,8 @@ def list_bookings():
             "mobile": b.mobile,
             "model": b.model,
             "address": b.address,
+            "latitude": b.latitude,
+            "longitude": b.longitude,
             "created_at": b.created_at.strftime('%Y-%m-%d %H:%M')
         }
         for b in bookings
@@ -78,4 +75,4 @@ def list_bookings():
     return jsonify(results)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True)  # For production, use app.run(host='0.0.0.0', port=5000)
