@@ -6,10 +6,7 @@ import os
 app = Flask(__name__)
 
 # ✅ Load PostgreSQL connection from environment variable
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
-    'DATABASE_URL',
-    'postgresql://testdrive_db_user:3MwrW6T038nWmddw1BxfQGu4NsRLL6Wl@dpg-d20ahv15pdvs73caoo7g-a:5432/testdrive_db'
-)
+app.config['SQLALCHEMY_DATABASE_URI'] ='postgresql://testdrive_db_user:3MwrW6T038nWmddw1BxfQGu4NsRLL6Wl@dpg-d20ahv15pdvs73caoo7g-a:5432/testdrive_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # ✅ Initialize SQLAlchemy
