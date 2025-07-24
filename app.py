@@ -107,6 +107,41 @@ def lat_long_to_digipin(latitude, longitude):
         print(f"Error in lat_long_to_digipin: {e}")  # For debugging
         return None
 
+def get_address_from_coordinates(latitude, longitude):
+    """
+    Get address from coordinates using reverse geocoding
+    This is a simplified implementation - in production, use actual geocoding API
+    """
+    try:
+        # Simplified address generation based on coordinates
+        # In production, use Google Maps API, OpenStreetMap Nominatim, etc.
+        
+        # Basic area determination (this is just for demo)
+        if 22.0 <= latitude <= 23.0 and 88.0 <= longitude <= 89.0:
+            area = "Kolkata, West Bengal"
+        elif 28.0 <= latitude <= 29.0 and 77.0 <= longitude <= 78.0:
+            area = "New Delhi, Delhi"
+        elif 19.0 <= latitude <= 20.0 and 72.0 <= longitude <= 73.0:
+            area = "Mumbai, Maharashtra"
+        elif 12.0 <= latitude <= 13.0 and 77.0 <= longitude <= 78.0:
+            area = "Bangalore, Karnataka"
+        else:
+            # Generic address based on coordinates
+            area = f"Area-{abs(int(latitude*100))}, State-{abs(int(longitude*100))}"
+        
+        # Generate a more detailed address
+        street_num = abs(int((latitude + longitude) * 100)) % 999 + 1
+        pin_code = abs(int((latitude * longitude) * 10000)) % 899999 + 100000
+        
+        detailed_address = f"Street {street_num}, {area}, PIN-{pin_code}, India"
+        
+        return detailed_address
+        
+    except Exception as e:
+        print(f"Error in get_address_from_coordinates: {e}")
+        return "Address could not be determined from location"
+
+
 def digipin_to_lat_long(digipin):
     """
     Convert DIGIPIN back to latitude and longitude
@@ -149,6 +184,42 @@ def index():
 @app.route('/book-test-drive')
 def book_test_drive():
     return render_template('book_test_drive.html')
+
+
+@app.route('/api/get-address', methods=['POST'])
+def api_get_address():
+    try:
+        data = request.get_json()
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+        
+        if latitude is None or longitude is None:
+            return jsonify({'error': 'Latitude and longitude are required'}), 400
+        
+        try:
+            lat = float(latitude)
+            lng = float(longitude)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid coordinate format'}), 400
+        
+        # Get DIGIPIN
+        digipin = lat_long_to_digipin(lat, lng)
+        if not digipin:
+            return jsonify({'error': 'Invalid coordinates for DIGIPIN'}), 400
+        
+        # Get address from coordinates
+        digipin_address = get_address_from_coordinates(lat, lng)
+        
+        return jsonify({
+            'digipin': digipin,
+            'address': digipin_address,
+            'latitude': lat,
+            'longitude': lng
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/book-test-drive', methods=['POST'])
 def api_book_test_drive():
