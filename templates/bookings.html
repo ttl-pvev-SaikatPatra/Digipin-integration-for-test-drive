@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Test Drive Bookings</h2>
+
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>DIGIPIN</th>
+                <th>Vehicle</th>
+                <th>Test Drive Date</th>
+                <th>Status</th>
+                <th>Booked On</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for booking in bookings %}
+            <tr>
+                <td>{{ booking.id }}</td>
+                <td>{{ booking.name }}</td>
+                <td>{{ booking.email }}</td>
+                <td>{{ booking.phone }}</td>
+                <td><code>{{ booking.digipin }}</code></td>
+                <td>{{ booking.vehicle_type.title() }}</td>
+                <td>{{ booking.test_drive_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    <span class="badge bg-{% if booking.status == 'confirmed' %}success{% elif booking.status == 'pending' %}warning{% else %}danger{% endif %}">
+                        {{ booking.status.title() }}
+                    </span>
+                </td>
+                <td>{{ booking.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
