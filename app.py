@@ -3,7 +3,18 @@ from flask_sqlalchemy import SQLAlchemy
 import os
 import requests
 import json
+import random
+import string
 from datetime import datetime
+
+def generate_booking_id():
+    """
+    Generate alphanumeric booking ID in format: 5-XXXXXXXX
+    Where X is a random alphanumeric character (A-Z, 0-9)
+    """
+    # Generate 8 random alphanumeric characters (uppercase letters and digits)
+    random_chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    return f"5-{random_chars}"
 
 app = Flask(__name__)
 
@@ -18,9 +29,9 @@ if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
 
 db = SQLAlchemy(app)
 
-# Database Models
 class TestDrive(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    booking_id = db.Column(db.String(10), unique=True, nullable=False)  # Add this line
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(20), nullable=False)
@@ -30,8 +41,9 @@ class TestDrive(db.Model):
     address = db.Column(db.Text, nullable=False)
     vehicle_type = db.Column(db.String(50), nullable=False)
     test_drive_date = db.Column(db.DateTime, nullable=False)
-    status = db.Column(db.String(20), default='pending')
+    status = db.Column(db.String(20), default='booked')  # Changed default from 'pending' to 'booked'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 
 # DIGIPIN Conversion Functions
 def lat_long_to_digipin(latitude, longitude):
@@ -122,8 +134,16 @@ def api_book_test_drive():
         if not digipin:
             return jsonify({'error': 'Invalid coordinates for DIGIPIN conversion'}), 400
         
+        # Generate unique booking ID
+        booking_id = generate_booking_id()
+        
+        # Ensure booking ID is unique (rare collision check)
+        while TestDrive.query.filter_by(booking_id=booking_id).first():
+            booking_id = generate_booking_id()
+        
         # Create new test drive booking
         test_drive = TestDrive(
+            booking_id=booking_id,  # Add this line
             name=data['name'].strip(),
             email=data['email'].strip().lower(),
             phone=data['phone'].strip(),
@@ -133,7 +153,7 @@ def api_book_test_drive():
             address=data['address'].strip(),
             vehicle_type=data['vehicle_type'].strip(),
             test_drive_date=datetime.fromisoformat(data['test_drive_date']),
-            status='pending'
+            status='booked'  # Changed from 'pending' to 'booked'
         )
         
         db.session.add(test_drive)
@@ -141,7 +161,7 @@ def api_book_test_drive():
         
         return jsonify({
             'success': True,
-            'booking_id': test_drive.id,
+            'booking_id': booking_id,  # Return the custom booking ID instead of database ID
             'digipin': digipin,
             'message': 'Test drive booked successfully!'
         })
@@ -149,6 +169,7 @@ def api_book_test_drive():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/get-digipin', methods=['POST'])
 def api_get_digipin():
@@ -211,6 +232,7 @@ def api_bookings():
     bookings = TestDrive.query.order_by(TestDrive.created_at.desc()).all()
     return jsonify([{
         'id': booking.id,
+        'booking_id': booking.booking_id,  # Add this line
         'name': booking.name,
         'email': booking.email,
         'phone': booking.phone,
