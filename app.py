@@ -7,10 +7,14 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://testdrive_db_user:3MwrW6T038nWmddw1BxfQGu4NsRLL6Wl@dpg-d20ahv15pdvs73caoo7g-a:5432/testdrive_db')
+# Database configuration - SECURITY FIXED
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///digipin_test.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'spp923345')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(24).hex())
+
+# Handle PostgreSQL URL format issue on Render
+if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
+    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace('postgres://', 'postgresql://', 1)
 
 db = SQLAlchemy(app)
 
@@ -36,6 +40,10 @@ def lat_long_to_digipin(latitude, longitude):
     This is a simplified implementation - replace with actual DIGIPIN algorithm
     """
     try:
+        # Validate coordinate ranges
+        if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+            return None
+            
         # Basic grid-based encoding (replace with actual DIGIPIN logic)
         lat_grid = int((latitude + 90) * 1000) % 10000
         lon_grid = int((longitude + 180) * 1000) % 10000
@@ -44,6 +52,7 @@ def lat_long_to_digipin(latitude, longitude):
         digipin = f"{lat_grid:04d}{lon_grid:04d}"
         return f"{digipin[:3]}-{digipin[3:6]}-{digipin[6:]}"
     except Exception as e:
+        print(f"Error in lat_long_to_digipin: {e}")  # For debugging
         return None
 
 def digipin_to_lat_long(digipin):
@@ -52,8 +61,11 @@ def digipin_to_lat_long(digipin):
     This is a simplified implementation - replace with actual DIGIPIN algorithm
     """
     try:
-        # Remove hyphens and decode
+        # Remove hyphens and validate format
         clean_digipin = digipin.replace('-', '')
+        if len(clean_digipin) != 8 or not clean_digipin.isdigit():
+            return None, None
+            
         lat_grid = int(clean_digipin[:4])
         lon_grid = int(clean_digipin[4:8])
         
@@ -62,6 +74,7 @@ def digipin_to_lat_long(digipin):
         
         return latitude, longitude
     except Exception as e:
+        print(f"Error in digipin_to_lat_long: {e}")  # For debugging
         return None, None
 
 # Initialize database - Fixed decorator issue
@@ -71,7 +84,8 @@ first_request = True
 def before_first_request():
     global first_request
     if first_request:
-        db.create_all()
+        with app.app_context():
+            db.create_all()
         first_request = False
 
 # Routes
@@ -91,24 +105,33 @@ def api_book_test_drive():
         # Validate required fields
         required_fields = ['name', 'email', 'phone', 'latitude', 'longitude', 'address', 'vehicle_type', 'test_drive_date']
         for field in required_fields:
-            if field not in data:
+            if field not in data or not data[field]:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
+        # Validate coordinate ranges
+        try:
+            lat = float(data['latitude'])
+            lng = float(data['longitude'])
+            if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+                return jsonify({'error': 'Invalid coordinate values'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid coordinate format'}), 400
+        
         # Convert coordinates to DIGIPIN
-        digipin = lat_long_to_digipin(data['latitude'], data['longitude'])
+        digipin = lat_long_to_digipin(lat, lng)
         if not digipin:
             return jsonify({'error': 'Invalid coordinates for DIGIPIN conversion'}), 400
         
         # Create new test drive booking
         test_drive = TestDrive(
-            name=data['name'],
-            email=data['email'],
-            phone=data['phone'],
-            latitude=data['latitude'],
-            longitude=data['longitude'],
+            name=data['name'].strip(),
+            email=data['email'].strip().lower(),
+            phone=data['phone'].strip(),
+            latitude=lat,
+            longitude=lng,
             digipin=digipin,
-            address=data['address'],
-            vehicle_type=data['vehicle_type'],
+            address=data['address'].strip(),
+            vehicle_type=data['vehicle_type'].strip(),
             test_drive_date=datetime.fromisoformat(data['test_drive_date']),
             status='pending'
         )
@@ -137,14 +160,20 @@ def api_get_digipin():
         if latitude is None or longitude is None:
             return jsonify({'error': 'Latitude and longitude are required'}), 400
         
-        digipin = lat_long_to_digipin(latitude, longitude)
+        try:
+            lat = float(latitude)
+            lng = float(longitude)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid coordinate format'}), 400
+        
+        digipin = lat_long_to_digipin(lat, lng)
         if not digipin:
             return jsonify({'error': 'Invalid coordinates'}), 400
         
         return jsonify({
             'digipin': digipin,
-            'latitude': latitude,
-            'longitude': longitude
+            'latitude': lat,
+            'longitude': lng
         })
         
     except Exception as e:
@@ -159,9 +188,9 @@ def api_get_location():
         if not digipin:
             return jsonify({'error': 'DIGIPIN is required'}), 400
         
-        latitude, longitude = digipin_to_lat_long(digipin)
+        latitude, longitude = digipin_to_lat_long(digipin.strip())
         if latitude is None or longitude is None:
-            return jsonify({'error': 'Invalid DIGIPIN'}), 400
+            return jsonify({'error': 'Invalid DIGIPIN format'}), 400
         
         return jsonify({
             'latitude': latitude,
@@ -200,4 +229,3 @@ def health_check():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
-
