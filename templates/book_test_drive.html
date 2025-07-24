@@ -31,16 +31,17 @@
     </select>
   </div>
 
-  <!-- Address -->
+  <!-- Address Line 1 - User Input -->
   <div class="mb-3">
-    <label for="address" class="form-label">Address</label>
-    <textarea
-      class="form-control"
-      id="address"
-      rows="3"
+    <label for="address_line1" class="form-label">Address Line 1</label>
+    <input 
+      type="text" 
+      class="form-control" 
+      id="address_line1" 
+      placeholder="Enter your house number, building name, etc."
       required
-      placeholder="Enter your full address"
-    ></textarea>
+    >
+    <small class="form-text text-muted">Enter your house/building details. Area details will be auto-filled from your location.</small>
   </div>
 
   <!-- Location picker -->
@@ -53,12 +54,25 @@
         id="locBtn"
       >📍 Get Current Location</button>
       <span id="locationStatus" class="text-muted">
-        Click to detect your location
+        Click to detect your location and auto-fill address
       </span>
     </div>
     <!-- hidden fields to send coords -->
     <input type="hidden" id="lat" required>
     <input type="hidden" id="lng" required>
+    <input type="hidden" id="digipin" required>
+  </div>
+
+  <!-- Combined Address Display -->
+  <div class="mb-3" id="addressDisplay" style="display: none;">
+    <label class="form-label">Complete Address</label>
+    <div class="card">
+      <div class="card-body">
+        <div id="combinedAddress" class="text-muted">
+          Address will appear here after getting your location...
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Date/time -->
@@ -74,7 +88,6 @@
     >
   </div>
 
-  <!-- IMPORTANT: Changed button type to "button" to prevent default form submission -->
   <button type="button" id="submitBtn" class="btn btn-primary">Book Test Drive</button>
 </form>
 
@@ -112,7 +125,7 @@
   const statusEl = document.getElementById('locationStatus');
   const mapModal = new bootstrap.Modal(document.getElementById('mapModal'));
 
-  // 1) Get geo, store coords, show map
+  // 1) Get geo, store coords, show map, get address
   locBtn.addEventListener('click', () => {
     statusEl.textContent = 'Requesting location…';
     locBtn.disabled = true;
@@ -126,44 +139,56 @@
     }
 
     navigator.geolocation.getCurrentPosition(
-      pos => {
+      async pos => {
         const { latitude, longitude } = pos.coords;
-        // store
+        
+        // Store coordinates
         document.getElementById('lat').value = latitude;
         document.getElementById('lng').value = longitude;
 
-        // init map once
-        if (!map) {
-          map = L.map('leafletMap', { zoomControl: false })
-            .setView([latitude, longitude], 15);
-          L.tileLayer(
-            'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-            { attribution: '&copy; OpenStreetMap, &copy; CARTO' }
-          ).addTo(map);
-          marker = L.marker([latitude, longitude])
-            .addTo(map)
-            .bindPopup('You are here')
-            .openPopup();
-        } else {
-          map.setView([latitude, longitude], 15, { animate: true });
-          marker.setLatLng([latitude, longitude]).openPopup();
+        try {
+          // Get DIGIPIN and address from coordinates
+          const response = await fetch('/api/get-address', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ latitude, longitude })
+          });
+          
+          const data = await response.json();
+          
+          if (data.digipin && data.address) {
+            // Store DIGIPIN
+            document.getElementById('digipin').value = data.digipin;
+            
+            // Update combined address display
+            updateCombinedAddress(data.address);
+            
+            // Show map
+            showMap(latitude, longitude);
+            
+            // UI feedback
+            statusEl.innerHTML = `
+              <span class="text-success">
+                <strong>Location captured!</strong><br>
+                DIGIPIN: ${data.digipin}<br>
+                Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}
+              </span>
+            `;
+            locBtn.className = 'btn btn-success';
+            locBtn.innerText = '✅ Location & Address Retrieved';
+            locBtn.disabled = false;
+            
+          } else {
+            throw new Error(data.error || 'Failed to get address');
+          }
+          
+        } catch (error) {
+          console.error('Address fetch error:', error);
+          statusEl.innerHTML = `<span class="text-warning">Location captured but address lookup failed</span>`;
+          locBtn.className = 'btn btn-warning';
+          locBtn.innerText = '⚠️ Location Only';
+          locBtn.disabled = false;
         }
-
-        // UI feedback
-        statusEl.innerHTML =
-          '<span class="text-success">Lat: ' +
-          latitude.toFixed(4) +
-          ', Lng: ' +
-          longitude.toFixed(4) +
-          '</span>';
-        locBtn.className = 'btn btn-success';
-        locBtn.innerText = '✅ Location Captured';
-        locBtn.disabled = false;
-
-        // show modal
-        mapModal.show();
-        // ensure map paints
-        setTimeout(() => map.invalidateSize(), 200);
       },
       err => {
         locBtn.disabled = false;
@@ -178,48 +203,120 @@
     );
   });
 
-  // 2) Submit form → API → countdown redirect
-  // IMPORTANT: Using click event on button instead of form submit
-  document.getElementById('submitBtn').addEventListener('click', async function(e) {
-    e.preventDefault(); // Prevent any default behavior
+  function showMap(latitude, longitude) {
+    // Initialize map once
+    if (!map) {
+      map = L.map('leafletMap', { zoomControl: false })
+        .setView([latitude, longitude], 15);
+      L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        { attribution: '&copy; OpenStreetMap, &copy; CARTO' }
+      ).addTo(map);
+      marker = L.marker([latitude, longitude])
+        .addTo(map)
+        .bindPopup('You are here')
+        .openPopup();
+    } else {
+      map.setView([latitude, longitude], 15, { animate: true });
+      marker.setLatLng([latitude, longitude]).openPopup();
+    }
+
+    // Show modal
+    mapModal.show();
+    setTimeout(() => map.invalidateSize(), 200);
+  }
+
+  function updateCombinedAddress(digipinAddress) {
+    const addressLine1 = document.getElementById('address_line1').value.trim();
     
-    console.log('Submit button clicked'); // Debug log
+    if (addressLine1) {
+      const combined = `${addressLine1}, ${digipinAddress}`;
+      document.getElementById('combinedAddress').innerHTML = `
+        <strong>Combined Address:</strong><br>
+        ${combined}
+      `;
+    } else {
+      document.getElementById('combinedAddress').innerHTML = `
+        <strong>DIGIPIN Address:</strong><br>
+        ${digipinAddress}<br>
+        <small class="text-muted">Enter Address Line 1 above to see combined address</small>
+      `;
+    }
+    
+    // Show the address display box
+    document.getElementById('addressDisplay').style.display = 'block';
+  }
+
+  // Update combined address when user types in Address Line 1
+  document.getElementById('address_line1').addEventListener('input', function() {
+    const digipinAddress = getStoredDigipinAddress();
+    if (digipinAddress) {
+      updateCombinedAddress(digipinAddress);
+    }
+  });
+
+  function getStoredDigipinAddress() {
+    // Extract stored DIGIPIN address from the display
+    const addressDisplay = document.getElementById('combinedAddress').textContent;
+    if (addressDisplay.includes('DIGIPIN Address:')) {
+      return addressDisplay.split('DIGIPIN Address:')[1].split('Enter Address')[0].trim();
+    } else if (addressDisplay.includes('Combined Address:')) {
+      // Extract the part after the first comma
+      const combined = addressDisplay.split('Combined Address:')[1].trim();
+      const parts = combined.split(', ');
+      if (parts.length > 1) {
+        return parts.slice(1).join(', ');
+      }
+    }
+    return null;
+  }
+
+  // 2) Submit form → API → countdown redirect
+  document.getElementById('submitBtn').addEventListener('click', async function(e) {
+    e.preventDefault();
+    
+    console.log('Submit button clicked');
     
     // Validation
     const lat = document.getElementById('lat').value;
     const lng = document.getElementById('lng').value;
+    const digipin = document.getElementById('digipin').value;
     
-    if (!lat || !lng) {
+    if (!lat || !lng || !digipin) {
       alert('Please capture your location first by clicking "Get Current Location".');
       return;
     }
 
-    // Get all form values
+    // Get form values
     const name = document.getElementById('name').value.trim();
     const email = document.getElementById('email').value.trim();
     const phone = document.getElementById('phone').value.trim();
     const vehicle_type = document.getElementById('vehicle_type').value;
-    const address = document.getElementById('address').value.trim();
+    const address_line1 = document.getElementById('address_line1').value.trim();
     const test_drive_date = document.getElementById('test_drive_date').value;
 
     // Basic validation
-    if (!name || !email || !phone || !vehicle_type || !address || !test_drive_date) {
+    if (!name || !email || !phone || !vehicle_type || !address_line1 || !test_drive_date) {
       alert('Please fill in all required fields.');
       return;
     }
+
+    // Get combined address
+    const digipinAddress = getStoredDigipinAddress();
+    const combinedAddress = digipinAddress ? `${address_line1}, ${digipinAddress}` : address_line1;
 
     const formData = {
       name: name,
       email: email,
       phone: phone,
       vehicle_type: vehicle_type,
-      address: address,
+      address: combinedAddress, // Send combined address
       latitude: parseFloat(lat),
       longitude: parseFloat(lng),
       test_drive_date: test_drive_date
     };
 
-    console.log('Sending data:', formData); // Debug log
+    console.log('Sending data:', formData);
 
     try {
       // Show loading state
@@ -235,14 +332,14 @@
         body: JSON.stringify(formData)
       });
 
-      console.log('Response status:', res.status); // Debug log
+      console.log('Response status:', res.status);
       
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
       
       const data = await res.json();
-      console.log('Response data:', data); // Debug log
+      console.log('Response data:', data);
 
       if (data.success) {
         let countdown = 3;
@@ -250,7 +347,7 @@
           document.getElementById('result').innerHTML = `
             <div class="alert alert-success">
               <h5>Test Drive Booked Successfully!</h5>
-             <p><strong>Booking ID:</strong> ${data.booking_id}</p>
+              <p><strong>Booking ID:</strong> ${data.booking_id}</p>
               <p><strong>Your Location DIGIPIN:</strong> ${data.digipin}</p>
               <p>Redirecting to home page in <strong>${countdown}</strong> seconds...</p>
               <div class="progress mt-2">
@@ -278,9 +375,11 @@
         document.getElementById('testDriveForm').reset();
         document.getElementById('lat').value = '';
         document.getElementById('lng').value = '';
+        document.getElementById('digipin').value = '';
+        document.getElementById('addressDisplay').style.display = 'none';
         locBtn.className = 'btn btn-info';
         locBtn.innerText = '📍 Get Current Location';
-        statusEl.textContent = 'Click to detect your location';
+        statusEl.textContent = 'Click to detect your location and auto-fill address';
         statusEl.className = 'text-muted';
         
       } else {
@@ -290,7 +389,7 @@
           </div>`;
       }
     } catch (err) {
-      console.error('Fetch error:', err); // Debug log
+      console.error('Fetch error:', err);
       document.getElementById('result').innerHTML = `
         <div class="alert alert-danger">
           <strong>Error:</strong> ${err.message}<br>
