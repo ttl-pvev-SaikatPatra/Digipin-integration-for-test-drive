@@ -9,10 +9,43 @@ from datetime import datetime
 import sqlalchemy
 from sqlalchemy import text
 
+def generate_booking_id():
+    """Generate alphanumeric booking ID in format: 5-XXXXXXXX"""
+    random_chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    return f"5-{random_chars}"
+
+app = Flask(__name__)
+
+# Database configuration
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///digipin_test.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(24).hex())
+
+# Handle PostgreSQL URL format issue on Render
+if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
+    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace('postgres://', 'postgresql://', 1)
+
+db = SQLAlchemy(app)
+
+# Database Models
+class TestDrive(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    booking_id = db.Column(db.String(10), unique=True, nullable=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(120), nullable=False)
+    phone = db.Column(db.String(20), nullable=False)
+    latitude = db.Column(db.Float, nullable=False)
+    longitude = db.Column(db.Float, nullable=False)
+    digipin = db.Column(db.String(20), nullable=False)
+    address = db.Column(db.Text, nullable=False)
+    vehicle_type = db.Column(db.String(50), nullable=False)
+    test_drive_date = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(20), default='booked')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# MOVE MIGRATION FUNCTION HERE (after app and db are defined)
 def migrate_database():
-    """
-    Automatically migrate database schema and data
-    """
+    """Automatically migrate database schema and data"""
     try:
         with app.app_context():
             engine = db.engine
@@ -24,7 +57,6 @@ def migrate_database():
             if 'booking_id' not in columns:
                 print("Adding booking_id column...")
                 with engine.connect() as conn:
-                    # Add the booking_id column
                     conn.execute(text("ALTER TABLE test_drive ADD COLUMN booking_id VARCHAR(10)"))
                     conn.commit()
                 print("booking_id column added successfully")
@@ -35,13 +67,11 @@ def migrate_database():
             ).all()
             
             for record in existing_records:
-                # Generate unique booking ID
                 booking_id = generate_booking_id()
                 while TestDrive.query.filter_by(booking_id=booking_id).first():
                     booking_id = generate_booking_id()
                 
                 record.booking_id = booking_id
-                # Update status from 'pending' to 'booked'
                 if record.status == 'pending':
                     record.status = 'booked'
             
@@ -53,44 +83,6 @@ def migrate_database():
         print(f"Migration error: {e}")
         db.session.rollback()
 
-
-def generate_booking_id():
-    """
-    Generate alphanumeric booking ID in format: 5-XXXXXXXX
-    Where X is a random alphanumeric character (A-Z, 0-9)
-    """
-    # Generate 8 random alphanumeric characters (uppercase letters and digits)
-    random_chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-    return f"5-{random_chars}"
-
-app = Flask(__name__)
-
-# Database configuration - SECURITY FIXED
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///digipin_test.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(24).hex())
-
-# Handle PostgreSQL URL format issue on Render
-if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
-    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace('postgres://', 'postgresql://', 1)
-
-db = SQLAlchemy(app)
-
-# Update your TestDrive model
-class TestDrive(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    booking_id = db.Column(db.String(10), unique=True, nullable=True)  # Add this
-    name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), nullable=False)
-    phone = db.Column(db.String(20), nullable=False)
-    latitude = db.Column(db.Float, nullable=False)
-    longitude = db.Column(db.Float, nullable=False)
-    digipin = db.Column(db.String(20), nullable=False)
-    address = db.Column(db.Text, nullable=False)
-    vehicle_type = db.Column(db.String(50), nullable=False)
-    test_drive_date = db.Column(db.DateTime, nullable=False)
-    status = db.Column(db.String(20), default='booked')  # Changed default
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 # DIGIPIN Conversion Functions
@@ -146,6 +138,7 @@ def before_first_request():
     if first_request:
         with app.app_context():
             db.create_all()
+            migrate_database()  # ADD THIS LINE
         first_request = False
 
 # Routes
