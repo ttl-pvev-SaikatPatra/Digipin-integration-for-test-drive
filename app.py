@@ -76,9 +76,10 @@ if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
 
 db = SQLAlchemy(app)
 
+# Update your TestDrive model
 class TestDrive(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    booking_id = db.Column(db.String(10), unique=True, nullable=False)  # Add this line
+    booking_id = db.Column(db.String(10), unique=True, nullable=True)  # Add this
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(20), nullable=False)
@@ -88,7 +89,7 @@ class TestDrive(db.Model):
     address = db.Column(db.Text, nullable=False)
     vehicle_type = db.Column(db.String(50), nullable=False)
     test_drive_date = db.Column(db.DateTime, nullable=False)
-    status = db.Column(db.String(20), default='booked')  # Changed default from 'pending' to 'booked'
+    status = db.Column(db.String(20), default='booked')  # Changed default
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
