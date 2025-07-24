@@ -3,8 +3,13 @@ services:
     name: digipin-flask-app
     env: python
     pythonVersion: 3.11
-    buildCommand: ""
-    startCommand: python --version && python app.py
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn --bind 0.0.0.0:$PORT app:app"
     plan: free
     branch: main
     region: oregon
+    envVars:
+      - key: DATABASE_URL
+        generateValue: true
+      - key: SECRET_KEY
+        generateValue: true
