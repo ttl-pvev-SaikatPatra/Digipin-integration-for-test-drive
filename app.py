@@ -6,6 +6,53 @@ import json
 import random
 import string
 from datetime import datetime
+import sqlalchemy
+from sqlalchemy import text
+
+def migrate_database():
+    """
+    Automatically migrate database schema and data
+    """
+    try:
+        with app.app_context():
+            engine = db.engine
+            inspector = sqlalchemy.inspect(engine)
+            
+            # Check if booking_id column exists
+            columns = [col['name'] for col in inspector.get_columns('test_drive')]
+            
+            if 'booking_id' not in columns:
+                print("Adding booking_id column...")
+                with engine.connect() as conn:
+                    # Add the booking_id column
+                    conn.execute(text("ALTER TABLE test_drive ADD COLUMN booking_id VARCHAR(10)"))
+                    conn.commit()
+                print("booking_id column added successfully")
+            
+            # Backfill existing records without booking_id
+            existing_records = TestDrive.query.filter(
+                (TestDrive.booking_id == None) | (TestDrive.booking_id == '')
+            ).all()
+            
+            for record in existing_records:
+                # Generate unique booking ID
+                booking_id = generate_booking_id()
+                while TestDrive.query.filter_by(booking_id=booking_id).first():
+                    booking_id = generate_booking_id()
+                
+                record.booking_id = booking_id
+                # Update status from 'pending' to 'booked'
+                if record.status == 'pending':
+                    record.status = 'booked'
+            
+            if existing_records:
+                db.session.commit()
+                print(f"Updated {len(existing_records)} existing records")
+                
+    except Exception as e:
+        print(f"Migration error: {e}")
+        db.session.rollback()
+
 
 def generate_booking_id():
     """
