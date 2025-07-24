@@ -74,7 +74,8 @@
     >
   </div>
 
-  <button type="submit" class="btn btn-primary">Book Test Drive</button>
+  <!-- IMPORTANT: Changed button type to "button" to prevent default form submission -->
+  <button type="button" id="submitBtn" class="btn btn-primary">Book Test Drive</button>
 </form>
 
 <div id="result" class="mt-4"></div>
@@ -115,6 +116,14 @@
   locBtn.addEventListener('click', () => {
     statusEl.textContent = 'Requesting location…';
     locBtn.disabled = true;
+
+    if (!navigator.geolocation) {
+      locBtn.disabled = false;
+      statusEl.textContent = 'Geolocation not supported';
+      statusEl.className = 'text-danger';
+      alert('Geolocation is not supported by this browser.');
+      return;
+    }
 
     navigator.geolocation.getCurrentPosition(
       pos => {
@@ -158,87 +167,140 @@
       },
       err => {
         locBtn.disabled = false;
-        statusEl.textContent = 'Failed to get location';
+        locBtn.className = 'btn btn-info';
+        locBtn.innerText = '📍 Get Current Location';
+        statusEl.textContent = 'Failed to get location: ' + err.message;
         statusEl.className = 'text-danger';
-        alert('Error: ' + err.message);
+        console.error('Geolocation error:', err);
+        alert('Error getting location: ' + err.message);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
   });
 
   // 2) Submit form → API → countdown redirect
-  document
-    .getElementById('testDriveForm')
-    .addEventListener('submit', async e => {
-      e.preventDefault();
+  // IMPORTANT: Using click event on button instead of form submit
+  document.getElementById('submitBtn').addEventListener('click', async function(e) {
+    e.preventDefault(); // Prevent any default behavior
+    
+    console.log('Submit button clicked'); // Debug log
+    
+    // Validation
+    const lat = document.getElementById('lat').value;
+    const lng = document.getElementById('lng').value;
+    
+    if (!lat || !lng) {
+      alert('Please capture your location first by clicking "Get Current Location".');
+      return;
+    }
 
-      const lat = document.getElementById('lat').value;
-      const lng = document.getElementById('lng').value;
-      if (!lat || !lng) {
-        alert('Please capture your location first.');
-        return;
+    // Get all form values
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const vehicle_type = document.getElementById('vehicle_type').value;
+    const address = document.getElementById('address').value.trim();
+    const test_drive_date = document.getElementById('test_drive_date').value;
+
+    // Basic validation
+    if (!name || !email || !phone || !vehicle_type || !address || !test_drive_date) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+
+    const formData = {
+      name: name,
+      email: email,
+      phone: phone,
+      vehicle_type: vehicle_type,
+      address: address,
+      latitude: parseFloat(lat),
+      longitude: parseFloat(lng),
+      test_drive_date: test_drive_date
+    };
+
+    console.log('Sending data:', formData); // Debug log
+
+    try {
+      // Show loading state
+      document.getElementById('submitBtn').disabled = true;
+      document.getElementById('submitBtn').innerText = 'Booking...';
+      
+      const res = await fetch('/api/book-test-drive', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
+
+      console.log('Response status:', res.status); // Debug log
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
       }
+      
+      const data = await res.json();
+      console.log('Response data:', data); // Debug log
 
-      const formData = {
-        name: document.getElementById('name').value,
-        email: document.getElementById('email').value,
-        phone: document.getElementById('phone').value,
-        vehicle_type: document.getElementById('vehicle_type').value,
-        address: document.getElementById('address').value,
-        latitude: parseFloat(lat),
-        longitude: parseFloat(lng),
-        test_drive_date: document.getElementById('test_drive_date').value
-      };
-
-      try {
-        const res = await fetch('/api/book-test-drive', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
-        });
-        const data = await res.json();
-
-        if (data.success) {
-          let countdown = 3;
-          const updateMsg = () => {
-            document.getElementById('result').innerHTML = `
-              <div class="alert alert-success">
-                <h5>Booked Successfully!</h5>
-                <p><strong>ID:</strong> ${data.booking_id}</p>
-                <p><strong>DIGIPIN:</strong> ${data.digipin}</p>
-                <p>Redirecting home in <strong>${countdown}</strong>s…</p>
-                <div class="progress mt-2">
-                  <div class="progress-bar bg-success"
-                    role="progressbar"
-                    style="width:${((3-countdown)/3)*100}%">
-                  </div>
-                </div>
-              </div>`;
-          };
-          updateMsg();
-          const timer = setInterval(() => {
-            countdown--;
-            if (countdown > 0) updateMsg();
-            else {
-              clearInterval(timer);
-              window.location.href = '/';
-            }
-          }, 1000);
-
-          // reset form + UI
-          document.getElementById('testDriveForm').reset();
-          locBtn.className = 'btn btn-info';
-          locBtn.innerText = '📍 Get Current Location';
-          statusEl.textContent = 'Click to detect your location';
-          statusEl.className = 'text-muted';
-        } else {
+      if (data.success) {
+        let countdown = 3;
+        const updateMsg = () => {
           document.getElementById('result').innerHTML = `
-            <div class="alert alert-danger">${data.error}</div>`;
-        }
-      } catch (err) {
+            <div class="alert alert-success">
+              <h5>Test Drive Booked Successfully!</h5>
+              <p><strong>Booking ID:</strong> ${data.booking_id}</p>
+              <p><strong>Your Location DIGIPIN:</strong> ${data.digipin}</p>
+              <p>Redirecting to home page in <strong>${countdown}</strong> seconds...</p>
+              <div class="progress mt-2">
+                <div class="progress-bar bg-success"
+                  role="progressbar"
+                  style="width:${((3-countdown)/3)*100}%">
+                </div>
+              </div>
+            </div>`;
+        };
+        
+        updateMsg();
+        
+        const timer = setInterval(() => {
+          countdown--;
+          if (countdown > 0) {
+            updateMsg();
+          } else {
+            clearInterval(timer);
+            window.location.href = '/';
+          }
+        }, 1000);
+
+        // Reset form and UI
+        document.getElementById('testDriveForm').reset();
+        document.getElementById('lat').value = '';
+        document.getElementById('lng').value = '';
+        locBtn.className = 'btn btn-info';
+        locBtn.innerText = '📍 Get Current Location';
+        statusEl.textContent = 'Click to detect your location';
+        statusEl.className = 'text-muted';
+        
+      } else {
         document.getElementById('result').innerHTML = `
-          <div class="alert alert-danger">Error: ${err.message}</div>`;
+          <div class="alert alert-danger">
+            <strong>Booking Failed:</strong> ${data.error || 'Unknown error occurred'}
+          </div>`;
       }
-    });
+    } catch (err) {
+      console.error('Fetch error:', err); // Debug log
+      document.getElementById('result').innerHTML = `
+        <div class="alert alert-danger">
+          <strong>Error:</strong> ${err.message}<br>
+          <small>Please check your internet connection and try again.</small>
+        </div>`;
+    } finally {
+      // Re-enable submit button
+      document.getElementById('submitBtn').disabled = false;
+      document.getElementById('submitBtn').innerText = 'Book Test Drive';
+    }
+  });
 </script>
 {% endblock %}
