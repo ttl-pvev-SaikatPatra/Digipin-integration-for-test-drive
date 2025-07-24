@@ -86,11 +86,11 @@ def migrate_database():
         print(f"Migration error: {e}")
         db.session.rollback()
 
-# =================== OFFICIAL INDIA POST DIGIPIN INTEGRATION ===================
+# =================== OPEN-SOURCE DIGIPIN INTEGRATION ===================
 
-def get_india_post_digipin_from_coordinates(latitude, longitude):
+def get_opensource_digipin_from_coordinates(latitude, longitude):
     """
-    Get official DIGIPIN from coordinates using India Post API
+    Get DIGIPIN from coordinates using open-source DIGIPIN API
     """
     try:
         # Check cache first
@@ -100,78 +100,51 @@ def get_india_post_digipin_from_coordinates(latitude, longitude):
             if datetime.now() - timestamp < timedelta(hours=1):
                 return cached_data
         
-        api_key = os.environ.get('INDIA_POST_API_KEY')
-        base_url = os.environ.get('INDIA_POST_API_URL', 'https://dak.indiapost.gov.in/api/v1')
+        digipin_api_url = os.environ.get('DIGIPIN_API_URL', 'http://localhost:3000')
         
-        if not api_key:
-            print("India Post API key not configured, using fallback")
-            return None
-        
-        # API request payload for reverse geocoding
-        payload = {
-            "latitude": latitude,
-            "longitude": longitude,
-            "output_format": "json",
-            "language": "en",
-            "include_address": True
-        }
-        
-        headers = {
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': 'application/json',
-            'User-Agent': 'DIGIPIN-TestDrive-App/1.0'
-        }
-        
-        # Make API request
-        response = requests.post(
-            f"{base_url}/digipin/reverse",
-            json=payload,
-            headers=headers,
+        # Call the open-source DIGIPIN encode endpoint
+        response = requests.get(
+            f"{digipin_api_url}/api/digipin/encode",
+            params={
+                'latitude': latitude,
+                'longitude': longitude
+            },
             timeout=15
         )
         
         if response.status_code == 200:
             data = response.json()
             
-            if data.get('status') == 'success':
+            if data.get('success') and data.get('digipin'):
                 result = {
                     'success': True,
                     'digipin': data.get('digipin'),
-                    'formatted_address': format_india_post_address(data),
-                    'components': {
-                        'house_number': data.get('house_number'),
-                        'street': data.get('street'),
-                        'locality': data.get('locality'),
-                        'sub_district': data.get('sub_district'),
-                        'district': data.get('district'),
-                        'state': data.get('state'),
-                        'pin_code': data.get('pin_code'),
-                        'country': 'India'
-                    },
-                    'confidence': data.get('confidence', 0.9),
-                    'source': 'india_post_official'
+                    'latitude': latitude,
+                    'longitude': longitude,
+                    'source': 'opensource_digipin',
+                    'confidence': 0.95
                 }
                 
                 # Cache the result
                 digipin_cache[cache_key] = (result, datetime.now())
                 return result
         
-        print(f"India Post API error: {response.status_code} - {response.text}")
+        print(f"Open-source DIGIPIN API error: {response.status_code} - {response.text}")
         return None
         
     except requests.exceptions.Timeout:
-        print("India Post API timeout")
+        print("Open-source DIGIPIN API timeout")
         return None
     except requests.exceptions.RequestException as e:
-        print(f"India Post API request error: {e}")
+        print(f"Open-source DIGIPIN API request error: {e}")
         return None
     except Exception as e:
-        print(f"India Post API error: {e}")
+        print(f"Open-source DIGIPIN API error: {e}")
         return None
 
-def get_coordinates_from_india_post_digipin(digipin):
+def get_coordinates_from_opensource_digipin(digipin):
     """
-    Get coordinates and address from official DIGIPIN using India Post API
+    Get coordinates from DIGIPIN using open-source DIGIPIN API
     """
     try:
         # Check cache first
@@ -181,138 +154,86 @@ def get_coordinates_from_india_post_digipin(digipin):
             if datetime.now() - timestamp < timedelta(hours=1):
                 return cached_data
         
-        api_key = os.environ.get('INDIA_POST_API_KEY')
-        base_url = os.environ.get('INDIA_POST_API_URL', 'https://dak.indiapost.gov.in/api/v1')
+        digipin_api_url = os.environ.get('DIGIPIN_API_URL', 'http://localhost:3000')
         
-        if not api_key:
-            print("India Post API key not configured, using fallback")
-            return None
-        
-        # API request payload for forward geocoding
-        payload = {
-            "digipin": digipin,
-            "output_format": "json",
-            "language": "en",
-            "include_coordinates": True
-        }
-        
-        headers = {
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': 'application/json',
-            'User-Agent': 'DIGIPIN-TestDrive-App/1.0'
-        }
-        
-        # Make API request
-        response = requests.post(
-            f"{base_url}/digipin/forward",
-            json=payload,
-            headers=headers,
+        # Call the open-source DIGIPIN decode endpoint
+        response = requests.get(
+            f"{digipin_api_url}/api/digipin/decode",
+            params={'digipin': digipin},
             timeout=15
         )
         
         if response.status_code == 200:
             data = response.json()
             
-            if data.get('status') == 'success':
+            if data.get('success') and data.get('latitude') and data.get('longitude'):
                 result = {
                     'success': True,
-                    'latitude': data.get('latitude'),
-                    'longitude': data.get('longitude'),
+                    'latitude': float(data.get('latitude')),
+                    'longitude': float(data.get('longitude')),
                     'digipin': digipin,
-                    'formatted_address': format_india_post_address(data),
-                    'components': {
-                        'house_number': data.get('house_number'),
-                        'street': data.get('street'),
-                        'locality': data.get('locality'),
-                        'sub_district': data.get('sub_district'),
-                        'district': data.get('district'),
-                        'state': data.get('state'),
-                        'pin_code': data.get('pin_code'),
-                        'country': 'India'
-                    },
-                    'confidence': data.get('confidence', 0.9),
-                    'source': 'india_post_official'
+                    'source': 'opensource_digipin',
+                    'confidence': 0.95
                 }
                 
                 # Cache the result
                 digipin_cache[cache_key] = (result, datetime.now())
                 return result
         
-        print(f"India Post DIGIPIN lookup error: {response.status_code} - {response.text}")
+        print(f"Open-source DIGIPIN decode error: {response.status_code} - {response.text}")
         return None
         
     except requests.exceptions.Timeout:
-        print("India Post API timeout")
+        print("Open-source DIGIPIN API timeout")
         return None
     except requests.exceptions.RequestException as e:
-        print(f"India Post API request error: {e}")
+        print(f"Open-source DIGIPIN API request error: {e}")
         return None
     except Exception as e:
-        print(f"India Post DIGIPIN lookup error: {e}")
+        print(f"Open-source DIGIPIN decode error: {e}")
         return None
 
-def format_india_post_address(api_data):
-    """Format India Post API response into readable address"""
-    try:
-        components = []
-        
-        # Building/House number
-        if api_data.get('house_number'):
-            components.append(api_data['house_number'])
-        
-        # Street
-        if api_data.get('street'):
-            components.append(api_data['street'])
-        
-        # Locality
-        if api_data.get('locality'):
-            components.append(api_data['locality'])
-        
-        # Sub-district
-        if api_data.get('sub_district'):
-            components.append(api_data['sub_district'])
-        
-        # District
-        if api_data.get('district'):
-            components.append(api_data['district'])
-        
-        # State
-        if api_data.get('state'):
-            components.append(api_data['state'])
-        
-        # PIN Code
-        if api_data.get('pin_code'):
-            components.append(f"PIN-{api_data['pin_code']}")
-        
-        # Country
-        components.append('India')
-        
-        return ', '.join(filter(None, components))
-        
-    except Exception as e:
-        print(f"Address formatting error: {e}")
-        return "Address formatting failed"
-
-# =================== ENHANCED DIGIPIN FUNCTIONS WITH OFFICIAL API ===================
+# =================== DIGIPIN FUNCTIONS WITH OPENSOURCE API ===================
 
 def lat_long_to_digipin(latitude, longitude):
     """
-    Convert latitude and longitude to DIGIPIN using official India Post API
+    Convert latitude and longitude to DIGIPIN using open-source API
     Falls back to simplified algorithm if API is unavailable
     """
     try:
-        # Try official India Post API first
-        result = get_india_post_digipin_from_coordinates(latitude, longitude)
+        # Try open-source DIGIPIN API first
+        result = get_opensource_digipin_from_coordinates(latitude, longitude)
         if result and result.get('success') and result.get('digipin'):
             return result['digipin']
         
         # Fallback to simplified algorithm
-        print("Using fallback DIGIPIN generation")
+        print("Open-source DIGIPIN API unavailable, using fallback")
         return lat_long_to_digipin_fallback(latitude, longitude)
         
     except Exception as e:
         print(f"Error in lat_long_to_digipin: {e}")
         return lat_long_to_digipin_fallback(latitude, longitude)
+
+def digipin_to_lat_long(digipin):
+    """
+    Convert DIGIPIN to coordinates using open-source API
+    Falls back to simplified algorithm if API is unavailable
+    """
+    try:
+        # Try open-source DIGIPIN API first
+        result = get_coordinates_from_opensource_digipin(digipin)
+        if result and result.get('success'):
+            return result.get('latitude'), result.get('longitude')
+        
+        # Fallback to simplified algorithm
+        print("Open-source DIGIPIN API unavailable, using fallback")
+        return digipin_to_lat_long_fallback(digipin)
+        
+    except Exception as e:
+        print(f"Error in digipin_to_lat_long: {e}")
+        return digipin_to_lat_long_fallback(digipin)
+
+# =================== FALLBACK FUNCTIONS ===================
 
 def lat_long_to_digipin_fallback(latitude, longitude):
     """Fallback DIGIPIN generation (simplified algorithm)"""
@@ -324,31 +245,12 @@ def lat_long_to_digipin_fallback(latitude, longitude):
         lat_grid = int((latitude + 90) * 1000) % 10000
         lon_grid = int((longitude + 180) * 1000) % 10000
         
-        # Generate 10-character DIGIPIN-like code
+        # Generate 8-character DIGIPIN-like code
         digipin = f"{lat_grid:04d}{lon_grid:04d}"
         return f"{digipin[:3]}-{digipin[3:6]}-{digipin[6:]}"
     except Exception as e:
         print(f"Error in fallback DIGIPIN generation: {e}")
         return None
-
-def digipin_to_lat_long(digipin):
-    """
-    Convert DIGIPIN to coordinates using official India Post API
-    Falls back to simplified algorithm if API is unavailable
-    """
-    try:
-        # Try official India Post API first
-        result = get_coordinates_from_india_post_digipin(digipin)
-        if result and result.get('success'):
-            return result.get('latitude'), result.get('longitude')
-        
-        # Fallback to simplified algorithm
-        print("Using fallback coordinate conversion")
-        return digipin_to_lat_long_fallback(digipin)
-        
-    except Exception as e:
-        print(f"Error in digipin_to_lat_long: {e}")
-        return digipin_to_lat_long_fallback(digipin)
 
 def digipin_to_lat_long_fallback(digipin):
     """Fallback coordinate conversion (simplified algorithm)"""
@@ -370,47 +272,51 @@ def digipin_to_lat_long_fallback(digipin):
 
 def get_address_from_coordinates(latitude, longitude):
     """
-    Get address from coordinates using official India Post API
-    Falls back to simplified generation if API is unavailable
+    Get address from coordinates using simplified generation
+    This can be enhanced with geocoding APIs like OpenCage, Google Maps, etc.
     """
     try:
-        # Try official India Post API first
-        result = get_india_post_digipin_from_coordinates(latitude, longitude)
-        if result and result.get('success') and result.get('formatted_address'):
-            return result['formatted_address']
-        
-        # Fallback to simplified address generation
-        print("Using fallback address generation")
-        return get_address_from_coordinates_fallback(latitude, longitude)
-        
-    except Exception as e:
-        print(f"Error in get_address_from_coordinates: {e}")
-        return get_address_from_coordinates_fallback(latitude, longitude)
-
-def get_address_from_coordinates_fallback(latitude, longitude):
-    """Fallback address generation (simplified algorithm)"""
-    try:
-        # Your existing fallback logic here
+        # Simplified address generation for Indian locations
         if 21.5 <= latitude <= 27.0 and 87.0 <= longitude <= 89.5:
             areas = ["Salt Lake", "Park Street", "Ballygunge", "Howrah", "Durgapur"]
             area = f"{areas[abs(int(latitude*longitude)) % len(areas)]}, Kolkata, West Bengal"
         elif 28.0 <= latitude <= 29.0 and 76.5 <= longitude <= 77.5:
             areas = ["Connaught Place", "Karol Bagh", "Dwarka", "Rohini", "Lajpat Nagar"]
             area = f"{areas[abs(int(latitude*longitude)) % len(areas)]}, New Delhi, Delhi"
+        elif 18.5 <= latitude <= 20.5 and 72.5 <= longitude <= 73.5:
+            areas = ["Andheri", "Bandra", "Powai", "Thane", "Navi Mumbai"]
+            area = f"{areas[abs(int(latitude*longitude)) % len(areas)]}, Mumbai, Maharashtra"
+        elif 12.5 <= latitude <= 13.5 and 77.0 <= longitude <= 78.0:
+            areas = ["Koramangala", "Whitefield", "Electronic City", "Jayanagar", "Indiranagar"]
+            area = f"{areas[abs(int(latitude*longitude)) % len(areas)]}, Bangalore, Karnataka"
+        elif 12.5 <= latitude <= 13.5 and 79.5 <= longitude <= 80.5:
+            areas = ["T Nagar", "Anna Nagar", "Velachery", "Adyar", "Guindy"]
+            area = f"{areas[abs(int(latitude*longitude)) % len(areas)]}, Chennai, Tamil Nadu"
         else:
-            states = ["Karnataka", "Maharashtra", "Tamil Nadu", "Gujarat", "Rajasthan"]
-            area_names = ["Green Colony", "Royal Enclave", "Sunrise Nagar"]
+            # Generic address for other locations
+            states = ["Karnataka", "Maharashtra", "Tamil Nadu", "Gujarat", "Rajasthan", "Punjab", "Haryana"]
+            area_names = ["Green Colony", "Royal Enclave", "Sunrise Nagar", "Paradise Township", "Golden Heights"]
+            
             state = states[abs(int(latitude * longitude)) % len(states)]
             area_name = area_names[abs(int(latitude * 100)) % len(area_names)]
-            area = f"{area_name}, {state}"
+            
+            # Generate city name
+            city_prefixes = ["New", "East", "West", "North", "South"]
+            city_suffixes = ["pur", "bad", "nagar", "ganj"]
+            city_prefix = city_prefixes[abs(int(latitude * 10)) % len(city_prefixes)]
+            city_suffix = city_suffixes[abs(int(longitude * 10)) % len(city_suffixes)]
+            city_name = f"{city_prefix}{city_suffix}"
+            
+            area = f"{area_name}, {city_name}, {state}"
         
+        # Generate street number and PIN code
         street_num = abs(int((latitude + longitude) * 100)) % 999 + 1
         pin_code = abs(int((latitude * longitude) * 10000)) % 899999 + 100000
         
         return f"Street {street_num}, {area}, PIN-{pin_code}, India"
         
     except Exception as e:
-        print(f"Error in fallback address generation: {e}")
+        print(f"Error in address generation: {e}")
         return "Address could not be determined from location"
 
 # Initialize database
@@ -425,7 +331,7 @@ def before_first_request():
             migrate_database()
         first_request = False
 
-# =================== UPDATED API ROUTES ===================
+# =================== API ROUTES ===================
 
 @app.route('/')
 def index():
@@ -451,32 +357,27 @@ def api_get_address():
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid coordinate format'}), 400
         
-        # Get official DIGIPIN and address from India Post
-        result = get_india_post_digipin_from_coordinates(lat, lng)
+        # Get DIGIPIN using open-source API
+        digipin = lat_long_to_digipin(lat, lng)
+        if not digipin:
+            return jsonify({'error': 'Invalid coordinates for DIGIPIN'}), 400
         
-        if result and result.get('success'):
-            return jsonify({
-                'digipin': result['digipin'],
-                'address': result['formatted_address'],
-                'components': result.get('components', {}),
-                'latitude': lat,
-                'longitude': lng,
-                'source': result['source'],
-                'confidence': result.get('confidence', 0.9)
-            })
-        else:
-            # Fallback response
-            digipin = lat_long_to_digipin_fallback(lat, lng)
-            address = get_address_from_coordinates_fallback(lat, lng)
-            
-            return jsonify({
-                'digipin': digipin,
-                'address': address,
-                'latitude': lat,
-                'longitude': lng,
-                'source': 'fallback',
-                'confidence': 0.5
-            })
+        # Get address from coordinates
+        address = get_address_from_coordinates(lat, lng)
+        
+        # Determine source
+        result = get_opensource_digipin_from_coordinates(lat, lng)
+        source = result.get('source', 'fallback') if result else 'fallback'
+        confidence = result.get('confidence', 0.5) if result else 0.5
+        
+        return jsonify({
+            'digipin': digipin,
+            'address': address,
+            'latitude': lat,
+            'longitude': lng,
+            'source': source,
+            'confidence': confidence
+        })
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -497,7 +398,7 @@ def api_get_digipin():
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid coordinate format'}), 400
         
-        # Use official DIGIPIN API
+        # Use open-source DIGIPIN API
         digipin = lat_long_to_digipin(lat, lng)
         if not digipin:
             return jsonify({'error': 'Invalid coordinates'}), 400
@@ -520,31 +421,23 @@ def api_get_location():
         if not digipin:
             return jsonify({'error': 'DIGIPIN is required'}), 400
         
-        # Use official DIGIPIN API
-        result = get_coordinates_from_india_post_digipin(digipin.strip())
+        # Use open-source DIGIPIN API
+        latitude, longitude = digipin_to_lat_long(digipin.strip())
+        if latitude is None or longitude is None:
+            return jsonify({'error': 'Invalid DIGIPIN format'}), 400
         
-        if result and result.get('success'):
-            return jsonify({
-                'latitude': result['latitude'],
-                'longitude': result['longitude'],
-                'digipin': digipin,
-                'address': result.get('formatted_address'),
-                'source': result['source'],
-                'confidence': result.get('confidence', 0.9)
-            })
-        else:
-            # Fallback to simplified algorithm
-            latitude, longitude = digipin_to_lat_long_fallback(digipin.strip())
-            if latitude is None or longitude is None:
-                return jsonify({'error': 'Invalid DIGIPIN format'}), 400
-            
-            return jsonify({
-                'latitude': latitude,
-                'longitude': longitude,
-                'digipin': digipin,
-                'source': 'fallback',
-                'confidence': 0.5
-            })
+        # Determine source
+        result = get_coordinates_from_opensource_digipin(digipin.strip())
+        source = result.get('source', 'fallback') if result else 'fallback'
+        confidence = result.get('confidence', 0.5) if result else 0.5
+        
+        return jsonify({
+            'latitude': latitude,
+            'longitude': longitude,
+            'digipin': digipin,
+            'source': source,
+            'confidence': confidence
+        })
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -569,7 +462,7 @@ def api_book_test_drive():
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid coordinate format'}), 400
         
-        # Convert coordinates to DIGIPIN using official API
+        # Convert coordinates to DIGIPIN using open-source API
         digipin = lat_long_to_digipin(lat, lng)
         if not digipin:
             return jsonify({'error': 'Invalid coordinates for DIGIPIN conversion'}), 400
