@@ -7,7 +7,7 @@
     <table class="table table-striped">
         <thead>
             <tr>
-                <th>ID</th>
+                <th>Booking ID</th>  <!-- Changed from "ID" -->
                 <th>Name</th>
                 <th>Email</th>
                 <th>Phone</th>
@@ -21,7 +21,7 @@
         <tbody>
             {% for booking in bookings %}
             <tr>
-                <td>{{ booking.id }}</td>
+                <td><strong>{{ booking.booking_id }}</strong></td>  <!-- Display custom booking ID -->
                 <td>{{ booking.name }}</td>
                 <td>{{ booking.email }}</td>
                 <td>{{ booking.phone }}</td>
@@ -29,8 +29,8 @@
                 <td>{{ booking.vehicle_type.title() }}</td>
                 <td>{{ booking.test_drive_date.strftime('%Y-%m-%d %H:%M') }}</td>
                 <td>
-                    <span class="badge bg-{% if booking.status == 'confirmed' %}success{% elif booking.status == 'pending' %}warning{% else %}danger{% endif %}">
-                        {{ booking.status.title() }}
+                    <span class="badge bg-{% if booking.status == 'booked' %}success{% elif booking.status == 'pending' %}warning{% else %}danger{% endif %}">
+                        {{ booking.status.title() }}  <!-- Will show "Booked" instead of "Pending" -->
                     </span>
                 </td>
                 <td>{{ booking.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
