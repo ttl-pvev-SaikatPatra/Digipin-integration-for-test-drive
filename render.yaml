@@ -13,3 +13,7 @@ services:
         generateValue: true
       - key: SECRET_KEY
         generateValue: true
+      - key: INDIA_POST_API_KEY
+        value: "your_india_post_api_key_here"
+      - key: INDIA_POST_API_URL
+        value: "https://dak.indiapost.gov.in/api/v1"
