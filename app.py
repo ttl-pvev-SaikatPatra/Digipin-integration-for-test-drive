@@ -301,8 +301,8 @@ def api_book_test_drive():
         
         # Convert coordinates to DIGIPIN using Plus Code API
         plus_code = lat_long_to_plus_code(lat, lng)
-        if not plus_code:
-        return jsonify({'error': 'Invalid coordinates for Plus Code'}), 400
+            if not plus_code:
+                return jsonify({'error': 'Invalid coordinates for Plus Code'}), 400
         
         # Generate unique booking ID
         booking_id = generate_booking_id()
@@ -367,6 +367,7 @@ def health_check():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
