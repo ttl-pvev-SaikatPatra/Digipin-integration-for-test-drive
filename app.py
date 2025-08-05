@@ -87,11 +87,38 @@ def migrate_database():
         db.session.rollback()
 
 # ------------------------------------------------------------------ #
-#  Fake reverse-geocoder (unchanged)
+#  Real Reverse code using opncage
 # ------------------------------------------------------------------ #
 def get_address_from_coordinates(latitude: float, longitude: float) -> str:
-    # … (your simplified address generator remains unchanged) …
-    return "Address not implemented in this snippet"
+    """
+    Get real address from coordinates using OpenCage Geocoding API
+    """
+    try:
+        api_key = os.environ.get('OPENCAGE_API_KEY')
+        if not api_key:
+            return "Address API not configured"
+        
+        response = requests.get(
+            "https://api.opencagedata.com/geocode/v1/json",
+            params={
+                "key": api_key,
+                "q": f"{latitude},{longitude}",
+                "no_annotations": 1,
+                "language": "en"
+            },
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("results"):
+                return data["results"][0]["formatted"]
+        
+        return "Address not found"
+        
+    except Exception as e:
+        print(f"Geocoding error: {e}")
+        return "Address unavailable"
 
 # ------------------------------------------------------------------ #
 #  One-time DB init
