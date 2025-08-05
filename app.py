@@ -195,6 +195,11 @@ def api_bookings():
         "status": b.status, "created_at": b.created_at.isoformat()
     } for b in TestDrive.query.order_by(TestDrive.created_at.desc()).all()])
 
+@app.route('/bookings')
+def view_bookings():
+    bookings = TestDrive.query.order_by(TestDrive.created_at.desc()).all()
+    return render_template('bookings.html', bookings=bookings)
+
 @app.route('/health')
 def health(): return jsonify({"status":"healthy","ts":datetime.utcnow().isoformat()})
 
