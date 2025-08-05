@@ -238,8 +238,8 @@ def api_get_digipin():
         
         # Use open-source DIGIPIN API
         plus_code = lat_long_to_plus_code(lat, lng)
-            if not plus_code:
-                return jsonify({'error': 'Invalid coordinates for Plus Code conversion'}), 400
+        if not plus_code:
+            return jsonify({'error': 'Invalid coordinates for Plus Code conversion'}), 400
         
         return jsonify({
             'digipin': digipin,
@@ -367,6 +367,7 @@ def health_check():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
