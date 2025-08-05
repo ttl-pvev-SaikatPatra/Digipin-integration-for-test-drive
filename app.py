@@ -4,6 +4,7 @@ import os, requests, random, string
 from datetime import datetime
 import sqlalchemy
 from sqlalchemy import text
+from digipin import encode as dp_encode, decode as dp_decode
 
 # ──────────────────────────  Helpers ────────────────────────── #
 
@@ -11,66 +12,23 @@ def generate_booking_id() -> str:
     """Return an ID like 5-8AL4M2KQ."""
     return f"5-{''.join(random.choices(string.ascii_uppercase + string.digits, k=8))}"
 
-# Official working DigiPIN API endpoints
 def lat_long_to_digipin(lat: float, lng: float) -> str:
-    """Get official India Post DigiPIN"""
+    """Return India-Post DigiPIN (10-char, grouped 3-3-4)."""
     try:
-        # Try the GitHub API first (this actually works)
-        response = requests.get(
-            "https://digipin-api.vercel.app/api/encode",
-            params={"lat": lat, "lng": lng},
-            timeout=10
-        )
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("digipin"):
-                return data["digipin"]
-        
-        # Try alternative working endpoint
-        response = requests.get(
-            "https://digipin.proweblook.com/api/encode",
-            params={"latitude": lat, "longitude": lng, "api_key": "demo"},
-            timeout=10
-        )
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("digipin"):
-                return data["digipin"]
-                
-    except Exception as e:
-        print(f"DigiPIN API error: {e}")
-    
-    return lat_long_to_digipin_fallback(lat, lng)
+        return dp_encode(lat, lng)            # e.g. 4FK-73J-6F84
+    except Exception as exc:
+        print("digipin encode err:", exc)
+        return lat_long_to_digipin_fallback(lat, lng)  # keep your old fallback
 
-def digipin_to_lat_long(digipin: str) -> tuple[float, float]:
-    """Decode DigiPIN to coordinates"""
+def digipin_to_lat_long(pin: str) -> tuple[float, float]:
+    """Return (latitude, longitude) for a DigiPIN."""
     try:
-        # Try the GitHub API first
-        response = requests.get(
-            "https://digipin-api.vercel.app/api/decode",
-            params={"digipin": digipin.strip()},
-            timeout=10
-        )
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("lat") and data.get("lng"):
-                return float(data["lat"]), float(data["lng"])
-        
-        # Try alternative working endpoint
-        response = requests.get(
-            "https://digipin.proweblook.com/api/decode",
-            params={"digipin": digipin.strip(), "api_key": "demo"},
-            timeout=10
-        )
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("latitude") and data.get("longitude"):
-                return float(data["latitude"]), float(data["longitude"])
+        return dp_decode(pin)                 # tuple → (lat, lng)
+    except Exception as exc:
+        print("digipin decode err:", exc)
+        return digipin_to_lat_long_fallback(pin)
                 
-    except Exception as e:
-        print(f"DigiPIN decode error: {e}")
-    
-    return digipin_to_lat_long_fallback(digipin)
+
 
 # ---------- Simple fallback generator -------------------------- #
 def lat_long_to_digipin_fallback(lat: float, lng: float) -> str:
