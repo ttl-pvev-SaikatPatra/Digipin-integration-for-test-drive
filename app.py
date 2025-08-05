@@ -11,35 +11,37 @@ def generate_booking_id() -> str:
     """Return an ID like 5-8AL4M2KQ."""
     return f"5-{''.join(random.choices(string.ascii_uppercase + string.digits, k=8))}"
 
-# ---------- DigiPIN encoding & decoding (India Post) ----------- #
-DIGIPIN_API = "https://api.digipin.in/api/digipin"        # encode / decode base URL
+# ------------------------------------------------------------------ #
+#  DigiPIN helpers – Official CEPT/India-Post API                    #
+# ------------------------------------------------------------------ #
+
+DIGIPIN_BASE = "https://digipin.cept.gov.in"     # <-- WORKING public host
 
 def lat_long_to_digipin(lat: float, lng: float) -> str:
-    """Official India-Post DigiPIN for a coordinate, with fallback."""
+    """Return India-Post DigiPIN for given coordinate."""
     try:
-        r = requests.get(f"{DIGIPIN_API}/encode",
+        r = requests.get(f"{DIGIPIN_BASE}/api/digipin/encode",
                          params={"latitude": lat, "longitude": lng},
-                         timeout=10)
-        if r.ok:
-            return r.json().get("digipin", "")
-        print(f"[encode] HTTP {r.status_code}")
+                         timeout=8)
+        if r.ok and r.json().get("digipin"):
+            return r.json()["digipin"]          # e.g. "4FK-73J-6F84"
     except Exception as exc:
-        print(f"[encode] {exc}")
-    return lat_long_to_digipin_fallback(lat, lng)
+        print("[encode] DigiPIN API failed:", exc)
+    return lat_long_to_digipin_fallback(lat, lng)   # last-ditch
 
-def digipin_to_lat_long(digipin: str) -> tuple[float, float]:
-    """Decode DigiPIN back to (lat, lng), with fallback."""
+def digipin_to_lat_long(pin: str) -> tuple[float, float]:
+    """Return (lat, lng) for a DigiPIN code."""
     try:
-        r = requests.get(f"{DIGIPIN_API}/decode",
-                         params={"digipin": digipin.strip()},
-                         timeout=10)
-        if r.ok:
+        r = requests.get(f"{DIGIPIN_BASE}/api/digipin/decode",
+                         params={"digipin": pin.strip()},
+                         timeout=8)
+        if r.ok and all(k in r.json() for k in ("latitude", "longitude")):
             j = r.json()
-            return float(j.get("latitude", 0)), float(j.get("longitude", 0))
-        print(f"[decode] HTTP {r.status_code}")
+            return float(j["latitude"]), float(j["longitude"])
     except Exception as exc:
-        print(f"[decode] {exc}")
-    return digipin_to_lat_long_fallback(digipin)
+        print("[decode] DigiPIN API failed:", exc)
+    return digipin_to_lat_long_fallback(pin)
+
 
 # ---------- Simple fallback generator -------------------------- #
 def lat_long_to_digipin_fallback(lat: float, lng: float) -> str:
