@@ -8,6 +8,7 @@ import string
 from datetime import datetime, timedelta
 import sqlalchemy
 from sqlalchemy import text
+from openlocationcode import OpenLocationCode as OLC
 
 def generate_booking_id():
     """Generate alphanumeric booking ID in format: 5-XXXXXXXX"""
@@ -86,189 +87,26 @@ def migrate_database():
         print(f"Migration error: {e}")
         db.session.rollback()
 
-# =================== OPEN-SOURCE DIGIPIN INTEGRATION ===================
+# =================== PLUS CODE INTEGRATION ===================
 
-def get_opensource_digipin_from_coordinates(latitude, longitude):
+def lat_long_to_plus_code(latitude, longitude, code_length=10):
     """
-    Get DIGIPIN from coordinates using open-source DIGIPIN API
+    Convert latitude and longitude to Plus Code (Open Location Code)
     """
-    try:
-        # Check cache first
-        cache_key = f"coord_{latitude:.6f}_{longitude:.6f}"
-        if cache_key in digipin_cache:
-            cached_data, timestamp = digipin_cache[cache_key]
-            if datetime.now() - timestamp < timedelta(hours=1):
-                return cached_data
-        
-        digipin_api_url = os.environ.get('DIGIPIN_API_URL', 'http://localhost:3000')
-        
-        # Call the open-source DIGIPIN encode endpoint
-        response = requests.get(
-            f"{digipin_api_url}/api/digipin/encode",
-            params={
-                'latitude': latitude,
-                'longitude': longitude
-            },
-            timeout=15
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            if data.get('success') and data.get('digipin'):
-                result = {
-                    'success': True,
-                    'digipin': data.get('digipin'),
-                    'latitude': latitude,
-                    'longitude': longitude,
-                    'source': 'opensource_digipin',
-                    'confidence': 0.95
-                }
-                
-                # Cache the result
-                digipin_cache[cache_key] = (result, datetime.now())
-                return result
-        
-        print(f"Open-source DIGIPIN API error: {response.status_code} - {response.text}")
-        return None
-        
-    except requests.exceptions.Timeout:
-        print("Open-source DIGIPIN API timeout")
-        return None
-    except requests.exceptions.RequestException as e:
-        print(f"Open-source DIGIPIN API request error: {e}")
-        return None
-    except Exception as e:
-        print(f"Open-source DIGIPIN API error: {e}")
-        return None
+    return OLC.encode(latitude, longitude, code_length=code_length)
 
-def get_coordinates_from_opensource_digipin(digipin):
+def plus_code_to_lat_long(plus_code):
     """
-    Get coordinates from DIGIPIN using open-source DIGIPIN API
+    Convert Plus Code (Open Location Code) to latitude and longitude
     """
-    try:
-        # Check cache first
-        cache_key = f"digipin_{digipin}"
-        if cache_key in digipin_cache:
-            cached_data, timestamp = digipin_cache[cache_key]
-            if datetime.now() - timestamp < timedelta(hours=1):
-                return cached_data
-        
-        digipin_api_url = os.environ.get('DIGIPIN_API_URL', 'http://localhost:3000')
-        
-        # Call the open-source DIGIPIN decode endpoint
-        response = requests.get(
-            f"{digipin_api_url}/api/digipin/decode",
-            params={'digipin': digipin},
-            timeout=15
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            if data.get('success') and data.get('latitude') and data.get('longitude'):
-                result = {
-                    'success': True,
-                    'latitude': float(data.get('latitude')),
-                    'longitude': float(data.get('longitude')),
-                    'digipin': digipin,
-                    'source': 'opensource_digipin',
-                    'confidence': 0.95
-                }
-                
-                # Cache the result
-                digipin_cache[cache_key] = (result, datetime.now())
-                return result
-        
-        print(f"Open-source DIGIPIN decode error: {response.status_code} - {response.text}")
-        return None
-        
-    except requests.exceptions.Timeout:
-        print("Open-source DIGIPIN API timeout")
-        return None
-    except requests.exceptions.RequestException as e:
-        print(f"Open-source DIGIPIN API request error: {e}")
-        return None
-    except Exception as e:
-        print(f"Open-source DIGIPIN decode error: {e}")
-        return None
+    area = OLC.decode(plus_code)
+    # Use center of decoded area
+    return area.latitudeCenter, area.longitudeCenter
+
 
 # =================== DIGIPIN FUNCTIONS WITH OPENSOURCE API ===================
 
-def lat_long_to_digipin(latitude, longitude):
-    """
-    Convert latitude and longitude to DIGIPIN using open-source API
-    Falls back to simplified algorithm if API is unavailable
-    """
-    try:
-        # Try open-source DIGIPIN API first
-        result = get_opensource_digipin_from_coordinates(latitude, longitude)
-        if result and result.get('success') and result.get('digipin'):
-            return result['digipin']
-        
-        # Fallback to simplified algorithm
-        print("Open-source DIGIPIN API unavailable, using fallback")
-        return lat_long_to_digipin_fallback(latitude, longitude)
-        
-    except Exception as e:
-        print(f"Error in lat_long_to_digipin: {e}")
-        return lat_long_to_digipin_fallback(latitude, longitude)
-
-def digipin_to_lat_long(digipin):
-    """
-    Convert DIGIPIN to coordinates using open-source API
-    Falls back to simplified algorithm if API is unavailable
-    """
-    try:
-        # Try open-source DIGIPIN API first
-        result = get_coordinates_from_opensource_digipin(digipin)
-        if result and result.get('success'):
-            return result.get('latitude'), result.get('longitude')
-        
-        # Fallback to simplified algorithm
-        print("Open-source DIGIPIN API unavailable, using fallback")
-        return digipin_to_lat_long_fallback(digipin)
-        
-    except Exception as e:
-        print(f"Error in digipin_to_lat_long: {e}")
-        return digipin_to_lat_long_fallback(digipin)
-
 # =================== FALLBACK FUNCTIONS ===================
-
-def lat_long_to_digipin_fallback(latitude, longitude):
-    """Fallback DIGIPIN generation (simplified algorithm)"""
-    try:
-        if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
-            return None
-            
-        # Basic grid-based encoding
-        lat_grid = int((latitude + 90) * 1000) % 10000
-        lon_grid = int((longitude + 180) * 1000) % 10000
-        
-        # Generate 8-character DIGIPIN-like code
-        digipin = f"{lat_grid:04d}{lon_grid:04d}"
-        return f"{digipin[:3]}-{digipin[3:6]}-{digipin[6:]}"
-    except Exception as e:
-        print(f"Error in fallback DIGIPIN generation: {e}")
-        return None
-
-def digipin_to_lat_long_fallback(digipin):
-    """Fallback coordinate conversion (simplified algorithm)"""
-    try:
-        clean_digipin = digipin.replace('-', '')
-        if len(clean_digipin) != 8 or not clean_digipin.isdigit():
-            return None, None
-            
-        lat_grid = int(clean_digipin[:4])
-        lon_grid = int(clean_digipin[4:8])
-        
-        latitude = (lat_grid / 1000.0) - 90
-        longitude = (lon_grid / 1000.0) - 180
-        
-        return latitude, longitude
-    except Exception as e:
-        print(f"Error in fallback coordinate conversion: {e}")
-        return None, None
 
 def get_address_from_coordinates(latitude, longitude):
     """
@@ -357,9 +195,9 @@ def api_get_address():
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid coordinate format'}), 400
         
-        # Get DIGIPIN using open-source API
-        digipin = lat_long_to_digipin(lat, lng)
-        if not digipin:
+        # Get DIGIPIN using plus_code
+        plus_code = lat_long_to_plus_code(lat, lng)
+        if not plus_code:
             return jsonify({'error': 'Invalid coordinates for DIGIPIN'}), 400
         
         # Get address from coordinates
@@ -399,9 +237,9 @@ def api_get_digipin():
             return jsonify({'error': 'Invalid coordinate format'}), 400
         
         # Use open-source DIGIPIN API
-        digipin = lat_long_to_digipin(lat, lng)
-        if not digipin:
-            return jsonify({'error': 'Invalid coordinates'}), 400
+        plus_code = lat_long_to_plus_code(lat, lng)
+        if not plus_code:
+        return jsonify({'error': 'Invalid coordinates for Plus Code conversion'}), 400
         
         return jsonify({
             'digipin': digipin,
@@ -422,7 +260,7 @@ def api_get_location():
             return jsonify({'error': 'DIGIPIN is required'}), 400
         
         # Use open-source DIGIPIN API
-        latitude, longitude = digipin_to_lat_long(digipin.strip())
+        latitude, longitude = plus_code_to_lat_long(plus_code.strip())    
         if latitude is None or longitude is None:
             return jsonify({'error': 'Invalid DIGIPIN format'}), 400
         
@@ -432,11 +270,10 @@ def api_get_location():
         confidence = result.get('confidence', 0.5) if result else 0.5
         
         return jsonify({
-            'latitude': latitude,
-            'longitude': longitude,
-            'digipin': digipin,
-            'source': source,
-            'confidence': confidence
+            'digipin': plus_code,
+            'address': address,
+            'latitude': lat,
+            'longitude': lng
         })
         
     except Exception as e:
@@ -462,10 +299,10 @@ def api_book_test_drive():
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid coordinate format'}), 400
         
-        # Convert coordinates to DIGIPIN using open-source API
-        digipin = lat_long_to_digipin(lat, lng)
-        if not digipin:
-            return jsonify({'error': 'Invalid coordinates for DIGIPIN conversion'}), 400
+        # Convert coordinates to DIGIPIN using Plus Code API
+        plus_code = lat_long_to_plus_code(lat, lng)
+        if not plus_code:
+        return jsonify({'error': 'Invalid coordinates for Plus Code'}), 400
         
         # Generate unique booking ID
         booking_id = generate_booking_id()
@@ -480,7 +317,7 @@ def api_book_test_drive():
             phone=data['phone'].strip(),
             latitude=lat,
             longitude=lng,
-            digipin=digipin,
+            digipin=plus_code,
             address=data['address'].strip(),
             vehicle_type=data['vehicle_type'].strip(),
             test_drive_date=datetime.fromisoformat(data['test_drive_date']),
@@ -493,7 +330,7 @@ def api_book_test_drive():
         return jsonify({
             'success': True,
             'booking_id': booking_id,
-            'digipin': digipin,
+            'digipin': plus_code
             'message': 'Test drive booked successfully!'
         })
         
@@ -530,3 +367,4 @@ def health_check():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
