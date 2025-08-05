@@ -125,6 +125,10 @@ def _init():
 @app.route('/')
 def index(): return render_template("index.html")
 
+@app.route('/book-test-drive')
+def book_test_drive():
+    return render_template('book_test_drive.html')
+
 @app.route('/api/get-address', methods=['POST'])
 def api_get_address():
     try:
