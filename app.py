@@ -8,7 +8,7 @@ import string
 from datetime import datetime, timedelta
 import sqlalchemy
 from sqlalchemy import text
-from openlocationcode import encode, decode
+from openlocationcode.openlocationcode import encode, decode
 
 def generate_booking_id():
     """Generate alphanumeric booking ID in format: 5-XXXXXXXX"""
@@ -367,6 +367,7 @@ def health_check():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
