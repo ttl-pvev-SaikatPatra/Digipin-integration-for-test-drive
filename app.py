@@ -93,13 +93,13 @@ def lat_long_to_plus_code(latitude, longitude, code_length=10):
     """
     Convert latitude and longitude to Plus Code (Open Location Code)
     """
-    return OLC.encode(latitude, longitude, code_length=code_length)
+    return olc.encode(latitude, longitude, code_length=code_length)
 
 def plus_code_to_lat_long(plus_code):
     """
     Convert Plus Code (Open Location Code) to latitude and longitude
     """
-    area = OLC.decode(digipin)
+    area = olc.decode(digipin)
     # Use center of decoded area
     return area.latitudeCenter, area.longitudeCenter
 
@@ -367,6 +367,7 @@ def health_check():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
